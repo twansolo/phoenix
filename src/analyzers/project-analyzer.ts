@@ -1,13 +1,29 @@
 import { AnalysisResult, RevivalIssue } from '../types';
+import { PackageParser, ProjectPackages } from './package-parsers';
+import { PackageAPIClient, PackageVersionInfo } from './package-apis';
 import chalk from 'chalk';
 import ora from 'ora';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class ProjectAnalyzer {
+  private packageParser: PackageParser;
+  private apiClient: PackageAPIClient;
+
+  constructor() {
+    this.packageParser = new PackageParser();
+    this.apiClient = new PackageAPIClient();
+  }
+
   /**
    * Analyze a project for revival potential and issues
    */
-  async analyze(repository: string): Promise<AnalysisResult> {
+  async analyze(repository: string, repositoryPath?: string): Promise<AnalysisResult> {
     const spinner = ora(`🔍 Analyzing ${repository}...`).start();
+
+    // If no repository path provided, create a temp directory
+    // In real implementation, this would clone the repository
+    const repoPath = repositoryPath || await this.getRepositoryPath(repository);
 
     try {
       const result: AnalysisResult = {
@@ -30,7 +46,7 @@ export class ProjectAnalyzer {
 
       // Analyze different aspects
       spinner.text = '📦 Analyzing dependencies...';
-      const depHealth = await this.analyzeDependencies(repository);
+      const depHealth = await this.analyzeDependencies(repository, repoPath);
       result.health.dependencies = depHealth.score;
       result.issues.push(...depHealth.issues);
 
@@ -73,35 +89,153 @@ export class ProjectAnalyzer {
   }
 
   /**
-   * Analyze project dependencies
+   * Get repository path (for now, use current directory for testing)
    */
-  private async analyzeDependencies(repository: string): Promise<{ score: number; issues: RevivalIssue[] }> {
-    // Mock analysis - in real implementation would:
-    // - Check package.json/requirements.txt/etc
-    // - Identify outdated dependencies
-    // - Check for security vulnerabilities
-    // - Assess dependency health
+  private async getRepositoryPath(repository: string): Promise<string> {
+    // In a real implementation, this would:
+    // 1. Clone the repository to a temporary directory
+    // 2. Return the path to the cloned repository
+    // For now, we'll use the current directory for testing
+    
+    console.log(chalk.yellow(`⚠️  Using current directory for testing. In production, would clone ${repository}`));
+    return process.cwd();
+  }
 
-    const issues: RevivalIssue[] = [
-      {
-        type: 'dependency',
-        severity: 'high',
-        title: 'Outdated Dependencies',
-        description: 'Several dependencies are significantly outdated',
-        autoFixable: true,
-        estimatedEffort: 'hours'
-      },
-      {
-        type: 'security',
-        severity: 'critical',
-        title: 'Security Vulnerabilities',
-        description: 'Found 3 high-severity security vulnerabilities',
-        autoFixable: true,
-        estimatedEffort: 'minutes'
+  /**
+   * Analyze project dependencies - REAL IMPLEMENTATION
+   */
+  private async analyzeDependencies(repository: string, repoPath: string): Promise<{ score: number; issues: RevivalIssue[] }> {
+    const issues: RevivalIssue[] = [];
+    let totalPackages = 0;
+    let outdatedPackages = 0;
+    let securityVulnerabilities = 0;
+    let majorUpdatesNeeded = 0;
+    let deprecatedPackages = 0;
+
+    try {
+      // Parse all package files in the repository
+      const projectPackages = await this.packageParser.parseRepository(repoPath);
+      
+      if (projectPackages.length === 0) {
+        issues.push({
+          type: 'dependency',
+          severity: 'low',
+          title: 'No Package Files Found',
+          description: 'No recognized package management files found in the repository',
+          autoFixable: false,
+          estimatedEffort: 'minutes'
+        });
+        return { score: 80, issues }; // Not necessarily bad, just no dependencies
       }
-    ];
 
-    return { score: 45, issues };
+      // Analyze each ecosystem's packages
+      for (const projectPkg of projectPackages) {
+        const packages = projectPkg.packages.map(pkg => ({
+          name: pkg.name,
+          version: pkg.version,
+          ecosystem: projectPkg.ecosystem
+        }));
+
+        totalPackages += packages.length;
+
+        if (packages.length > 0) {
+          console.log(chalk.blue(`🔍 Analyzing ${packages.length} ${projectPkg.ecosystem} packages...`));
+          
+          // Batch check package versions
+          const versionInfo = await this.apiClient.batchCheckPackages(packages);
+
+          // Analyze results
+          for (const [packageName, info] of versionInfo) {
+            if (info.outdated) {
+              outdatedPackages++;
+              
+              if (info.majorBehind > 0) {
+                majorUpdatesNeeded++;
+                issues.push({
+                  type: 'dependency',
+                  severity: info.majorBehind > 2 ? 'high' : 'medium',
+                  title: `Major Update Available: ${packageName}`,
+                  description: `${packageName} is ${info.majorBehind} major version(s) behind (${info.current} → ${info.latest})`,
+                  autoFixable: true,
+                  estimatedEffort: info.majorBehind > 2 ? 'hours' : 'minutes'
+                });
+              } else if (info.minorBehind > 5 || info.patchBehind > 10) {
+                issues.push({
+                  type: 'dependency',
+                  severity: 'medium',
+                  title: `Outdated Package: ${packageName}`,
+                  description: `${packageName} has many updates available (${info.current} → ${info.latest})`,
+                  autoFixable: true,
+                  estimatedEffort: 'minutes'
+                });
+              }
+            }
+
+            if (info.deprecated) {
+              deprecatedPackages++;
+              issues.push({
+                type: 'dependency',
+                severity: 'high',
+                title: `Deprecated Package: ${packageName}`,
+                description: `${packageName} is deprecated and should be replaced`,
+                autoFixable: false,
+                estimatedEffort: 'hours'
+              });
+            }
+
+            // Add security vulnerabilities
+            for (const vuln of info.securityVulnerabilities) {
+              securityVulnerabilities++;
+              issues.push({
+                type: 'security',
+                severity: vuln.severity === 'moderate' ? 'medium' : vuln.severity,
+                title: vuln.title,
+                description: `${vuln.description} (${packageName})`,
+                autoFixable: !!vuln.fixedIn,
+                estimatedEffort: vuln.severity === 'critical' ? 'minutes' : 'hours'
+              });
+            }
+          }
+        }
+      }
+
+      // Calculate dependency health score
+      let score = 100;
+      
+      if (totalPackages > 0) {
+        const outdatedRatio = outdatedPackages / totalPackages;
+        const majorUpdateRatio = majorUpdatesNeeded / totalPackages;
+        const securityRatio = securityVulnerabilities / totalPackages;
+        const deprecatedRatio = deprecatedPackages / totalPackages;
+
+        score -= Math.round(outdatedRatio * 40); // Up to -40 for outdated packages
+        score -= Math.round(majorUpdateRatio * 30); // Up to -30 for major updates
+        score -= Math.round(securityRatio * 20); // Up to -20 for security issues
+        score -= Math.round(deprecatedRatio * 10); // Up to -10 for deprecated packages
+      }
+
+      score = Math.max(0, score);
+
+      console.log(chalk.green(`📊 Dependency Analysis Complete:`));
+      console.log(chalk.gray(`   Total packages: ${totalPackages}`));
+      console.log(chalk.gray(`   Outdated: ${outdatedPackages}`));
+      console.log(chalk.gray(`   Security issues: ${securityVulnerabilities}`));
+      console.log(chalk.gray(`   Score: ${score}/100`));
+
+      return { score, issues };
+
+    } catch (error) {
+      console.error(chalk.red(`❌ Dependency analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      issues.push({
+        type: 'dependency',
+        severity: 'medium',
+        title: 'Dependency Analysis Failed',
+        description: 'Unable to complete dependency analysis due to an error',
+        autoFixable: false,
+        estimatedEffort: 'hours'
+      });
+      return { score: 50, issues };
+    }
   }
 
   /**
