@@ -1,0 +1,103 @@
+{
+  "projects": [
+    {
+      "id": "pit_1757766301368_uwn4uqa13",
+      "repository": {
+        "full_name": "microsoft/typescript",
+        "name": "typescript",
+        "description": "Repository data would be fetched from GitHub API",
+        "language": "Unknown",
+        "stargazers_count": 0,
+        "html_url": "https://github.com/microsoft/typescript",
+        "updated_at": "2025-09-13T12:25:01.368Z"
+      },
+      "status": "completed",
+      "priority": 95,
+      "progress": 100,
+      "tags": [
+        "popular",
+        "framework",
+        "typescript"
+      ],
+      "notes": "Major JavaScript framework in need of modernization",
+      "category": "other",
+      "source": "manual",
+      "immersedAt": "2025-09-13T12:25:01.369Z",
+      "lastUpdated": "2025-09-13T12:32:04.054Z",
+      "completedAt": "2025-09-13T12:32:04.054Z",
+      "issues": []
+    },
+    {
+      "id": "pit_1757766309180_wg6zxygau",
+      "repository": {
+        "full_name": "facebook/react",
+        "name": "react",
+        "description": "Repository data would be fetched from GitHub API",
+        "language": "Unknown",
+        "stargazers_count": 0,
+        "html_url": "https://github.com/facebook/react",
+        "updated_at": "2025-09-13T12:25:09.180Z"
+      },
+      "status": "pending",
+      "priority": 90,
+      "progress": 0,
+      "tags": [
+        "popular",
+        "library",
+        "javascript"
+      ],
+      "notes": "Frontend library discovered by Kraven",
+      "category": "other",
+      "source": "manual",
+      "immersedAt": "2025-09-13T12:25:09.181Z",
+      "lastUpdated": "2025-09-13T12:25:09.181Z",
+      "issues": []
+    },
+    {
+      "id": "pit_1757766707465_80k8v5u6y",
+      "repository": {
+        "full_name": "twansolo/abandoned-cli-tool",
+        "name": "abandoned-cli-tool",
+        "description": "Repository data would be fetched from GitHub API",
+        "language": "Unknown",
+        "stargazers_count": 0,
+        "html_url": "https://github.com/twansolo/abandoned-cli-tool",
+        "updated_at": "2025-09-13T12:31:47.465Z"
+      },
+      "status": "pending",
+      "priority": 1,
+      "progress": 0,
+      "tags": [
+        "cli",
+        "abandoned",
+        "high-potential"
+      ],
+      "notes": "Found via Kraven, strong revival potential",
+      "category": "other",
+      "source": "manual",
+      "immersedAt": "2025-09-13T12:31:47.465Z",
+      "lastUpdated": "2025-09-13T12:31:47.465Z",
+      "issues": []
+    }
+  ],
+  "stats": {
+    "totalProjects": 3,
+    "statusDistribution": {
+      "pending": 2,
+      "analyzing": 0,
+      "modernizing": 0,
+      "community-building": 0,
+      "completed": 1,
+      "failed": 0,
+      "paused": 0
+    },
+    "languageDistribution": {
+      "Unknown": 3
+    },
+    "averagePriority": 62,
+    "averageProgress": 33.333333333333336,
+    "successRate": 33.33333333333333
+  },
+  "lastExported": "2025-09-13T12:38:13.871Z",
+  "exportVersion": "1.0.0"
+}

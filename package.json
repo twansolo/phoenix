@@ -11,6 +11,8 @@
     "start": "node dist/cli.js",
     "dev": "ts-node src/cli.ts",
     "watch": "tsc --watch",
+    "export-web-data": "node dist/web/export-pit-data.js",
+    "export-web-data-watch": "node dist/web/export-pit-data.js --watch",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts"
