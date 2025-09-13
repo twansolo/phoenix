@@ -51,7 +51,7 @@ export class CommunityBuilder {
       return result;
 
     } catch (error) {
-      spinner.fail(`❌ Community kit generation failed: ${error.message}`);
+      spinner.fail(`❌ Community kit generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }

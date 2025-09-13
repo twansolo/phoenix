@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import * as fs from 'fs/promises';
 import { KravenResults, KravenRepository } from '../types';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -25,9 +25,18 @@ export class KravenIntegration {
     const spinner = ora('📥 Reading Kraven results...').start();
     
     try {
-      // Read and parse Kraven results
+      // Read and parse Kraven results with better error handling
       const fileContent = await fs.readFile(filePath, 'utf-8');
-      const kravenResults: KravenResults = JSON.parse(fileContent);
+      
+      // Clean the content to remove any BOM or encoding issues
+      const cleanContent = fileContent.replace(/^\uFEFF/, '').trim();
+      
+      // Validate it looks like JSON
+      if (!cleanContent.startsWith('{') && !cleanContent.startsWith('[')) {
+        throw new Error('File does not appear to contain valid JSON. Make sure to use --output json with Kraven.');
+      }
+      
+      const kravenResults: KravenResults = JSON.parse(cleanContent);
       
       spinner.text = `📊 Processing ${kravenResults.analyzed.length} repositories...`;
       
@@ -51,9 +60,10 @@ export class KravenIntegration {
           await this.importRepository(repo);
           result.imported.push(repoName);
           
-          // Add to queue if requested
+          // Add to Lazarus Pit if requested
           if (options.queue) {
-            await this.addToQueue(repo);
+            // This would need a reference to Phoenix core
+            // For now, just mark as queued
             result.queued.push(repoName);
           }
           
@@ -65,7 +75,7 @@ export class KravenIntegration {
           }
           
         } catch (error) {
-          result.errors.push(`${repo.repository.full_name}: ${error.message}`);
+          result.errors.push(`${repo.repository.full_name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
@@ -82,7 +92,7 @@ export class KravenIntegration {
       return result;
 
     } catch (error) {
-      spinner.fail(`❌ Import failed: ${error.message}`);
+      spinner.fail(`❌ Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
@@ -145,20 +155,60 @@ export class KravenIntegration {
   }
 
   /**
-   * Add repository to Phoenix revival queue
+   * Add repository to Phoenix Lazarus Pit
    */
-  private async addToQueue(kravenRepo: KravenRepository): Promise<void> {
+  private async addToPit(kravenRepo: KravenRepository, phoenixCore: any): Promise<void> {
     // Calculate priority based on Kraven metrics
     const priority = this.calculatePriority(kravenRepo);
     
-    // Add to queue with calculated priority
-    // For now, just log it
-    console.log(chalk.gray(`📋 Queued ${kravenRepo.repository.full_name} (priority: ${priority})`));
+    // Immerse in Lazarus Pit
+    const id = await phoenixCore.immerse(kravenRepo.repository.full_name, {
+      priority,
+      source: 'kraven' as const,
+      tags: this.generateTags(kravenRepo),
+      notes: `Discovered by Kraven: ${kravenRepo.reasons.join(', ')}`,
+      category: this.categorizeRepository(kravenRepo.repository)
+    });
     
-    // In a real implementation, this would:
-    // - Add to Phoenix queue
-    // - Set priority
-    // - Schedule processing
+    console.log(chalk.gray(`🔥 Immersed ${kravenRepo.repository.full_name} in Lazarus Pit (ID: ${id}, priority: ${priority})`));
+  }
+
+  /**
+   * Generate tags based on Kraven analysis
+   */
+  private generateTags(kravenRepo: KravenRepository): string[] {
+    const tags: string[] = ['kraven-discovered'];
+    
+    // Add priority tags
+    if (kravenRepo.revivalPotential > 80) tags.push('high-potential');
+    if (kravenRepo.abandonmentScore > 80) tags.push('abandoned');
+    if (kravenRepo.repository.stargazers_count > 1000) tags.push('popular');
+    
+    // Add language tag
+    if (kravenRepo.repository.language) {
+      tags.push(kravenRepo.repository.language.toLowerCase());
+    }
+    
+    // Add reason-based tags
+    if (kravenRepo.reasons.some(r => r.includes('security'))) tags.push('security-issues');
+    if (kravenRepo.reasons.some(r => r.includes('dependencies'))) tags.push('outdated-deps');
+    
+    return tags;
+  }
+
+  /**
+   * Categorize repository based on its characteristics
+   */
+  private categorizeRepository(repo: any): 'cli-tool' | 'library' | 'framework' | 'app' | 'other' {
+    const name = repo.full_name.toLowerCase();
+    const desc = (repo.description || '').toLowerCase();
+
+    if (name.includes('cli') || desc.includes('command line')) return 'cli-tool';
+    if (name.includes('lib') || desc.includes('library')) return 'library';
+    if (name.includes('framework') || desc.includes('framework')) return 'framework';
+    if (name.includes('app') || desc.includes('application')) return 'app';
+    
+    return 'other';
   }
 
   /**
@@ -209,7 +259,7 @@ export class KravenIntegration {
       spinner.succeed(`✅ Exported ${projects.length} projects to ${outputPath}`);
 
     } catch (error) {
-      spinner.fail(`❌ Export failed: ${error.message}`);
+      spinner.fail(`❌ Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }

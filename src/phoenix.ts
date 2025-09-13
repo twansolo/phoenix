@@ -3,6 +3,7 @@ import { ProjectAnalyzer } from './analyzers/project-analyzer';
 import { DependencyModernizer } from './modernizers/dependency-modernizer';
 import { CommunityBuilder } from './community/community-builder';
 import { ProgressTracker } from './tracking/progress-tracker';
+import { LazarusPit, PitEntry, PitQuery, PitStats } from './storage/lazarus-pit';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -44,7 +45,7 @@ export class PhoenixCore {
   private communityBuilder: CommunityBuilder;
   private progressTracker: ProgressTracker;
   private config: PhoenixConfig;
-  private queue: QueueItem[] = [];
+  private lazarusPit: LazarusPit;
   private activeProjects: Map<string, RevivalProject> = new Map();
 
   constructor(config?: Partial<PhoenixConfig>) {
@@ -52,6 +53,7 @@ export class PhoenixCore {
     this.modernizer = new DependencyModernizer();
     this.communityBuilder = new CommunityBuilder();
     this.progressTracker = new ProgressTracker();
+    this.lazarusPit = new LazarusPit();
     
     this.config = {
       defaultPreset: 'standard',
@@ -149,7 +151,7 @@ export class PhoenixCore {
       return project;
 
     } catch (error) {
-      spinner.fail(`❌ Revival failed: ${error.message}`);
+      spinner.fail(`❌ Revival failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       const project = this.activeProjects.get(projectId);
       if (project) {
@@ -193,46 +195,79 @@ export class PhoenixCore {
   /**
    * Queue management
    */
-  async getQueue(): Promise<QueueItem[]> {
-    return this.queue.sort((a, b) => b.priority - a.priority);
+  /**
+   * Lazarus Pit management - Dynamic storage and resurrection system
+   */
+  async getPit(): Promise<LazarusPit> {
+    return this.lazarusPit;
   }
 
-  async addToQueue(repository: string, priority: number = 1): Promise<void> {
-    const id = this.generateProjectId(repository);
-    const repoInfo = await this.getRepositoryInfo(repository);
-    
-    this.queue.push({
-      id,
-      repository: {
-        full_name: repoInfo.full_name,
-        html_url: repoInfo.html_url
-      },
-      priority,
-      addedAt: new Date()
-    });
+  async immerse(repository: string, options: {
+    priority?: number;
+    source?: 'kraven' | 'manual' | 'api';
+    tags?: string[];
+    notes?: string;
+    category?: 'cli-tool' | 'library' | 'framework' | 'app' | 'other';
+  } = {}): Promise<string> {
+    return await this.lazarusPit.immerse(repository, options);
   }
 
-  async removeFromQueue(id: string): Promise<void> {
-    this.queue = this.queue.filter(item => item.id !== id);
+  async extract(id: string): Promise<boolean> {
+    return await this.lazarusPit.extract(id);
   }
 
-  async processQueue(): Promise<{ repository: string }> {
-    const next = this.queue.shift();
+  async queryPit(query: PitQuery = {}): Promise<PitEntry[]> {
+    return await this.lazarusPit.query(query);
+  }
+
+  async getPitStats(): Promise<PitStats> {
+    return await this.lazarusPit.getStats();
+  }
+
+  async getNextFromPit(): Promise<PitEntry | null> {
+    return await this.lazarusPit.getNext();
+  }
+
+  async updatePitEntry(id: string, updates: Partial<PitEntry['phoenixData']>): Promise<boolean> {
+    return await this.lazarusPit.updateEntry(id, updates);
+  }
+
+  async processFromPit(): Promise<{ repository: string; id: string } | null> {
+    const next = await this.getNextFromPit();
     if (!next) {
-      throw new Error('Queue is empty');
+      return null;
     }
 
+    // Update status to analyzing
+    await this.updatePitEntry(next.id, { 
+      status: 'analyzing',
+      startedAt: new Date()
+    });
+
     // Start revival process for next item
-    setTimeout(() => {
-      this.reviveProject(next.repository.full_name, {
-        preset: this.config.defaultPreset,
-        autoFix: this.config.autoFix,
-        dryRun: false,
-        outputFormat: 'table'
-      });
+    setTimeout(async () => {
+      try {
+        await this.reviveProject(next.repository.full_name, {
+          preset: this.config.defaultPreset,
+          autoFix: this.config.autoFix,
+          dryRun: false,
+          outputFormat: 'table'
+        });
+        
+        await this.updatePitEntry(next.id, { 
+          status: 'completed',
+          progress: 100,
+          completedAt: new Date()
+        });
+      } catch (error) {
+        await this.updatePitEntry(next.id, { 
+          status: 'failed',
+          issues: [error instanceof Error ? error.message : 'Unknown error']
+        });
+      }
     }, 1000);
 
-    return { repository: next.repository.full_name };
+    return { repository: next.repository.full_name, id: next.id };
   }
 
   /**

@@ -58,7 +58,7 @@ export class DependencyModernizer {
       return result;
 
     } catch (error) {
-      spinner.fail(`❌ Modernization failed: ${error.message}`);
+      spinner.fail(`❌ Modernization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
@@ -140,7 +140,7 @@ export class DependencyModernizer {
    * Get modernization preset
    */
   private getPreset(presetName: string): { tools: string[]; features: string[] } {
-    const presets = {
+    const presets: Record<string, { tools: string[]; features: string[] }> = {
       minimal: {
         tools: ['prettier', 'eslint'],
         features: ['basic-linting', 'code-formatting']
@@ -214,7 +214,7 @@ export class DependencyModernizer {
     // - Create migration scripts
     // - Handle API changes
 
-    const codemods = {
+    const codemods: Record<string, string> = {
       'react': 'react-18-codemod.js',
       'typescript': 'typescript-5-migration.js'
     };

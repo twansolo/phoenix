@@ -67,7 +67,7 @@ export class ProjectAnalyzer {
       return result;
 
     } catch (error) {
-      spinner.fail(`❌ Analysis failed: ${error.message}`);
+      spinner.fail(`❌ Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }

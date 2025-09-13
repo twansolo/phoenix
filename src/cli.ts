@@ -68,7 +68,7 @@ program
       console.log(chalk.green(`✅ Revival process completed!`));
       console.log(chalk.gray(`Project ID: ${result.id}`));
     } catch (error) {
-      console.error(chalk.red(`❌ Revival failed: ${error.message}`));
+      console.error(chalk.red(`❌ Revival failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
@@ -96,7 +96,7 @@ program
         console.log(chalk.cyan(`Issues Found: ${result.issues.length}`));
       }
     } catch (error) {
-      console.error(chalk.red(`❌ Analysis failed: ${error.message}`));
+      console.error(chalk.red(`❌ Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
@@ -124,7 +124,7 @@ program
       console.log(chalk.green(`✅ Modernization completed!`));
       console.log(chalk.cyan(`Dependencies updated: ${result.updated.length}`));
     } catch (error) {
-      console.error(chalk.red(`❌ Modernization failed: ${error.message}`));
+      console.error(chalk.red(`❌ Modernization failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
@@ -154,7 +154,7 @@ program
       console.log(chalk.green(`✅ Community kit generated!`));
       console.log(chalk.cyan(`Files created: ${result.filesCreated.length}`));
     } catch (error) {
-      console.error(chalk.red(`❌ Community kit generation failed: ${error.message}`));
+      console.error(chalk.red(`❌ Community kit generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
@@ -183,7 +183,7 @@ program
         console.log(chalk.cyan(`Projects queued: ${result.queued.length}`));
       }
     } catch (error) {
-      console.error(chalk.red(`❌ Import failed: ${error.message}`));
+      console.error(chalk.red(`❌ Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
@@ -211,41 +211,109 @@ program
         console.log(chalk.gray(`Progress: ${status.progress}%`));
       }
     } catch (error) {
-      console.error(chalk.red(`❌ Status check failed: ${error.message}`));
+      console.error(chalk.red(`❌ Status check failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
 
-// Queue Command
+// Lazarus Pit Command
 program
-  .command('queue')
-  .description('Manage revival queue')
-  .option('--list', 'List queued projects', false)
-  .option('--add <repository>', 'Add project to queue')
-  .option('--remove <id>', 'Remove project from queue')
-  .option('--process', 'Process next item in queue', false)
+  .command('pit')
+  .description('Manage the Lazarus Pit - Dynamic project resurrection storage')
+  .option('--list', 'List projects in the pit', false)
+  .option('--stats', 'Show pit statistics', false)
+  .option('--immerse <repository>', 'Immerse project in the pit')
+  .option('--extract <id>', 'Extract project from the pit')
+  .option('--process', 'Process next project from the pit', false)
+  .option('--priority <level>', 'Set priority when immersing (1-100)', parseInt)
+  .option('--tags <tags>', 'Add tags when immersing (comma-separated)')
+  .option('--notes <notes>', 'Add notes when immersing')
+  .option('--status <status>', 'Filter by status when listing')
+  .option('--source <source>', 'Filter by source when listing')
   .action(async (options) => {
     console.log(banner);
+    console.log(chalk.red('🔥 LAZARUS PIT 🔥'));
+    console.log(chalk.gray('Dynamic resurrection storage system\n'));
     
     try {
       if (options.list) {
-        const queue = await phoenix.getQueue();
-        console.log(chalk.cyan(`📋 Revival Queue (${queue.length} projects)`));
-        queue.forEach((item, index) => {
-          console.log(chalk.gray(`${index + 1}. ${item.repository.full_name}`));
+        const query: any = {};
+        if (options.status) query.status = [options.status];
+        if (options.source) query.source = [options.source];
+        
+        const entries = await phoenix.queryPit(query);
+        console.log(chalk.cyan(`🔥 Lazarus Pit Contents (${entries.length} projects)`));
+        
+        if (entries.length === 0) {
+          console.log(chalk.gray('   The pit is empty. Use --immerse to add projects.'));
+        } else {
+          entries.forEach((entry) => {
+            const statusEmoji = {
+              pending: '⏳', analyzing: '🔍', modernizing: '🛠️',
+              'community-building': '🌟', completed: '✅', failed: '❌', paused: '⏸️'
+            }[entry.phoenixData.status];
+            
+            console.log(chalk.white(`   ${statusEmoji} ${entry.repository.full_name}`));
+            console.log(chalk.gray(`      ID: ${entry.id} | Priority: ${entry.phoenixData.priority} | Progress: ${entry.phoenixData.progress}%`));
+            if (entry.metadata.tags.length > 0) {
+              console.log(chalk.gray(`      Tags: ${entry.metadata.tags.join(', ')}`));
+            }
+          });
+        }
+      } else if (options.stats) {
+        const stats = await phoenix.getPitStats();
+        console.log(chalk.cyan('📊 Lazarus Pit Statistics\n'));
+        console.log(chalk.white(`Total Projects: ${stats.total}`));
+        console.log(chalk.white(`Success Rate: ${stats.successRate.toFixed(1)}%`));
+        console.log(chalk.white(`Average Priority: ${stats.avgPriority.toFixed(1)}`));
+        console.log(chalk.white(`Average Progress: ${stats.avgProgress.toFixed(1)}%\n`));
+        
+        console.log(chalk.yellow('Status Distribution:'));
+        Object.entries(stats.byStatus).forEach(([status, count]) => {
+          if (count > 0) {
+            console.log(chalk.gray(`  ${status}: ${count}`));
+          }
         });
-      } else if (options.add) {
-        await phoenix.addToQueue(options.add);
-        console.log(chalk.green(`✅ Added ${options.add} to revival queue`));
-      } else if (options.remove) {
-        await phoenix.removeFromQueue(options.remove);
-        console.log(chalk.green(`✅ Removed project from queue`));
+        
+        console.log(chalk.yellow('\nLanguage Distribution:'));
+        Object.entries(stats.byLanguage).slice(0, 5).forEach(([lang, count]) => {
+          console.log(chalk.gray(`  ${lang}: ${count}`));
+        });
+      } else if (options.immerse) {
+        const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : [];
+        const id = await phoenix.immerse(options.immerse, {
+          priority: options.priority,
+          tags,
+          notes: options.notes,
+          source: 'manual'
+        });
+        console.log(chalk.green(`🔥 ${options.immerse} immersed in Lazarus Pit (ID: ${id})`));
+      } else if (options.extract) {
+        const success = await phoenix.extract(options.extract);
+        if (success) {
+          console.log(chalk.green(`🔥 Project extracted from Lazarus Pit`));
+        } else {
+          console.log(chalk.red(`❌ Project not found in pit`));
+        }
       } else if (options.process) {
-        const result = await phoenix.processQueue();
-        console.log(chalk.green(`✅ Processing: ${result.repository}`));
+        const result = await phoenix.processFromPit();
+        if (result) {
+          console.log(chalk.green(`🔥 Processing: ${result.repository} (ID: ${result.id})`));
+        } else {
+          console.log(chalk.yellow('🔥 Lazarus Pit is empty - no projects to process'));
+        }
+      } else {
+        // Show help if no options provided
+        console.log(chalk.yellow('Available commands:'));
+        console.log(chalk.gray('  --list              List all projects in the pit'));
+        console.log(chalk.gray('  --stats             Show pit statistics'));
+        console.log(chalk.gray('  --immerse <repo>    Add project to pit'));
+        console.log(chalk.gray('  --extract <id>      Remove project from pit'));
+        console.log(chalk.gray('  --process           Process next project'));
+        console.log(chalk.gray('\nExample: phoenix pit --immerse microsoft/typescript --priority 80 --tags "popular,framework"'));
       }
     } catch (error) {
-      console.error(chalk.red(`❌ Queue operation failed: ${error.message}`));
+      console.error(chalk.red(`❌ Lazarus Pit operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
@@ -271,7 +339,7 @@ program
         process.exit(1);
       }
     } catch (error) {
-      console.error(chalk.red(`❌ Health check failed: ${error.message}`));
+      console.error(chalk.red(`❌ Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
       process.exit(1);
     }
   });
