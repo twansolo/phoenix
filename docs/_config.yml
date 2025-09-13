@@ -1,0 +1,66 @@
+# Phoenix - Automated Project Revival
+title: "Phoenix 🔥"
+description: "From ashes to 2099 - Automated project resurrection"
+url: "https://twansolo.github.io"
+baseurl: "/phoenix"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+
+# GitHub Pages compatible plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Navigation
+navigation:
+  - title: "Home"
+    url: "/"
+  - title: "Revive"
+    url: "/revive"
+  - title: "Queue"
+    url: "/queue"
+  - title: "Stats"
+    url: "/stats"
+  - title: "CLI"
+    url: "/cli"
+
+# Phoenix branding
+phoenix:
+  tagline: "Automated project resurrection"
+  subtitle: "From ashes to 2099"
+  colors:
+    primary: "#ff4500"    # Phoenix orange/red
+    secondary: "#ff6b35"  # Lighter orange
+    accent: "#ffa500"     # Golden orange
+    dark: "#8b0000"       # Dark red
+    background: "#1a1a1a" # Dark background
+
+# Social links
+github_username: twansolo
+repository: phoenix
+
+# GitHub Pages settings
+safe: true
+incremental: false
+lsi: false
+
+# Exclude from processing
+exclude:
+  - node_modules/
+  - package.json
+  - package-lock.json
+  - tsconfig.json
+  - src/
+  - dist/
+  - .gitignore
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+
+# Include files
+include:
+  - _pages
